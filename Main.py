@@ -4,7 +4,7 @@ from PIL import Image
 import pickle
 import PIL
 from tqdm import tqdm
-
+from random import shuffle
 
 def open_image(path):
   newImage = Image.open(path)
@@ -138,26 +138,30 @@ class Transition:
 
         return R
 
-    def constructImageScale(self, Image, scale):
+    def constructImageScale(self, Image, scale, X):
 
 
 
         R = [ [] for x in range(len(Image))]
         for i in range(len(R)):
             for k in range(len(Image[0])):
-                R[i].append(-1)
+                R[i].append(Image[i][k])
 
-        for i in range(len(Image)//scale):
-            for i2 in range(len(Image[i])//scale):
-                for j in range(scale):
-                    for j2 in range(scale):
+        if scale == 1:
 
-                        R[i*scale+j][i2*scale+j2] = self.makeTransitionScale(Image, i, i2, j, j2, scale)
+            for (i,j) in X:
+                R[i][j] = self.makeTransitionScale(Image, i, j, 0, 0, scale)
 
-        for i in range(len(R)):
-            for j in range(len(R[0])):
-                if R[i][j] == -1:
-                    print("pas ok")
+        else:
+
+            for i in range(len(Image)//scale):
+                for i2 in range(len(Image[i])//scale):
+                    for j in range(scale):
+                        for j2 in range(scale):
+
+                            if (i*scale+j, i2*scale+j2) in X:
+
+                                R[i*scale+j][i2*scale+j2] = self.makeTransitionScale(Image, i, i2, j, j2, scale)
 
         return R
 
@@ -190,12 +194,16 @@ class TransitionsMatrix:
 
         return R
 
-    def constructVideoScale(self, Image, scale):
+    def constructVideoScale(self, Image, scale, timeStrech):
 
         R = [Image]
 
+        X = [(x,y) for x in range(len(Image)) for y in range(len(Image[0]))]
+
         for i in tqdm(range(len(self.M))):
-            R.append(self.M[i].constructImageScale(R[i], scale))
+            shuffle(X)
+            for t in range(timeStrech):
+                R.append(self.M[i].constructImageScale(R[i], scale, X[t*len(X)//timeStrech:(t+1)*len(X)//timeStrech]))
 
         return R
 
@@ -266,7 +274,7 @@ def genVideo(image, model):
     os.system("open OUT/"+str(model)+".mp4")
 
 
-def genVideoScale(image, model, scale):
+def genVideoScale(image, model, scale, timeStrech):
 
     IN = "Images/"+model+"/IN"
     OUT = "Images/"+model+"/OUT"
@@ -284,7 +292,7 @@ def genVideoScale(image, model, scale):
 
     T = pickle.load( open( "TRAINED/"+model+".train", "rb" ) )
 
-    R = T.constructVideoScale(convert_grayscale(Image.open(TEMP+image)), scale)
+    R = T.constructVideoScale(convert_grayscale(Image.open(TEMP+image)), scale, timeStrech)
 
     for i in range(len(R)):
         listToImageGreyScale(R[i], i, OUT)
@@ -296,7 +304,7 @@ def genVideoScale(image, model, scale):
 
 #train("TEST.mp4", 100)
 
-genVideoScale('IN.jpg', "1", 4)
+genVideoScale('IN.jpg', "MOVE", 1, 1)
 
 
 
