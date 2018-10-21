@@ -314,6 +314,8 @@ def genVideo(image, model, scale = 1, timeStrech = 1, size = ""):
     OUT = "Images/"+model+"/OUT"
     TEMP = "Images/"+model+"/TEMP"
 
+    name = os.path.splitext(image)[0]
+
     im = Image.open(IN+'/0001.png')
     width, height = im.size
 
@@ -341,14 +343,15 @@ def genVideo(image, model, scale = 1, timeStrech = 1, size = ""):
             listToImageGreyScale(R[i], i, OUT)
 
 
-    os.system("ffmpeg -i '"+OUT+"/%04d.png' -c:v libx264 -preset veryslow -crf 0 OUT/"+str(model)+"_"+str(size)+".mp4 ")
+    os.system("ffmpeg -i '"+OUT+"/%04d.png' -c:v libx264 -preset veryslow -crf 0 OUT/"+name+"_"+str(model)+"_"+str(size)+".mp4 ")
     os.system("open OUT/"+str(model)+".mp4")    
 
 
 
-train("2.mp4", 50, color = True)
+train("2.mp4", 1080, color = True)
 
-genVideo('IN.jpg', "2", scale = 2, timeStrech = 20, size = "50")
+genVideo('IN.jpg', "2", scale = 1, timeStrech = 50, size = "1080")
+genVideo('IN2.jpg', "2", scale = 1, timeStrech = 50, size = "1080")
 
 
 
