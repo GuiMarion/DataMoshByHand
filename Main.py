@@ -304,11 +304,11 @@ def train(VideoName, scale, color = False):
 
     print("Learning ...")
     T = TransitionsMatrix(S, color = color)
-    pickle.dump((color,T), open( "TRAINED/"+name+".train", "wb" ) )
+    pickle.dump((color,T), open( "TRAINED/"+name+"_"+str(scale)+".train", "wb" ) )
     print("DONE")
 
 
-def genVideo(image, model, scale = 1, timeStrech = 1):
+def genVideo(image, model, scale = 1, timeStrech = 1, size = ""):
 
     IN = "Images/"+model+"/IN"
     OUT = "Images/"+model+"/OUT"
@@ -324,7 +324,7 @@ def genVideo(image, model, scale = 1, timeStrech = 1):
     im2 = im2.resize((width*scale, height*scale), PIL.Image.ANTIALIAS)
     im2.save(TEMP+image)
 
-    (color,T) = pickle.load( open( "TRAINED/"+model+".train", "rb" ) )
+    (color,T) = pickle.load( open( "TRAINED/"+model+"_"+size+".train", "rb" ) )
 
     if color:
         R = T.constructVideoScale(convert_color(Image.open(TEMP+image)), scale, timeStrech)
@@ -341,14 +341,14 @@ def genVideo(image, model, scale = 1, timeStrech = 1):
             listToImageGreyScale(R[i], i, OUT)
 
 
-    os.system("ffmpeg -i '"+OUT+"/%04d.png' -c:v libx264 -preset veryslow -crf 0 OUT/"+str(model)+".mp4 ")
+    os.system("ffmpeg -i '"+OUT+"/%04d.png' -c:v libx264 -preset veryslow -crf 0 OUT/"+str(model)+"_"+str(size)+".mp4 ")
     os.system("open OUT/"+str(model)+".mp4")    
 
 
 
-train("2.mp4", 500, color = True)
+train("2.mp4", 50, color = True)
 
-genVideo('IN.jpg', "2", scale = 2, timeStrech = 20)
+genVideo('IN.jpg', "2", scale = 2, timeStrech = 20, size = "50")
 
 
 
