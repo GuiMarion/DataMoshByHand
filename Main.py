@@ -5,6 +5,7 @@ import pickle
 import PIL
 from tqdm import tqdm
 from random import shuffle
+import math
 
 def open_image(path):
   newImage = Image.open(path)
@@ -62,17 +63,83 @@ def convert_grayscale(image):
     # Return new image
     return pixels
 
+def convert_color(image):
+  # Get size
+    width, height = image.size
+
+  # Create new Image and a Pixel Map
+    pixels = [ [] for x in range(width)]
+    for i in range(len(pixels)):
+        for k in range(height):
+            pixels[i].append(0)
+
+  # Transform to grayscale
+    for i in range(width):
+        for j in range(height):
+      # Get Pixel
+            pixel = get_pixel(image, i, j)
+
+            # Get R, G, B values (This are int from 0 to 255)
+            red =   pixel[0]
+            green = pixel[1]
+            blue =  pixel[2]
+
+            # Set Pixel in new image
+            pixels[i][j] = (red, green, blue)
+
+    # Return new image
+    return pixels
+
 
 def distance(a, b):
-    return abs(a[0]-b[0]) + abs(a[1]-b[1])
+    return math.sqrt((a[0]-b[0])**2 + abs(a[1]-b[1])**2)
+
+
+class Pixel:
+
+    def __init__(self, R, V, G):
+
+        self.R = R
+        self.V = V
+        self.G = G
+
+class PixelTransition:
+
+    def __init__(self, ind, pixel1, pixel2, color = False):
+        self.ind = ind
+        self.color = color
+
+        if self.color:
+            (r1, v1, b1) = pixel1
+            (r2, v2, b2) = pixel2
+
+            self.R = r1 - r2
+            self.V = v1 - v2
+            self.B = b1 - b2
+        else:
+            self.NB = pixel1 - pixel2
 
 
 class Transition:
 
-    def __init__(self, A, B):
+    def __init__(self, A, B, color = False):
 
         self.M = []
+        self.color = color
         self.getTransition(A, B)
+
+    def pixelDistance(self, val1, val2):
+
+        if self.color:
+            (r1, v1, b1) = val1
+            (r2, v2, b2) = val2
+
+            return math.sqrt((r1-r2)**2 + (r1-r2)**2 + (r1-r2)**2)
+
+        else:
+            return abs(val1 - val2)
+
+
 
 
     def getTransition(self, B, A):
@@ -85,20 +152,20 @@ class Transition:
         for k in range(len(A)):
             for k2 in range(len(A[k])):
 
-                temp = abs(A[k][k2]-B[0][0])
+                temp = self.pixelDistance(A[k][k2], B[0][0])
                 temp_i = (0, 0)
 
-                for i in range(max(0, k - len(B)//20), min(len(B)-1, k + len(B)//20)):
-                    for i2 in range(max(0, k2 - len(B)//20), min(len(B[i])-1, k2 + len(B[i])//20)):
+                for i in range(max(0, k - int(math.log2(len(B))) ), min(len(B)-1, k + int(math.log2(len(B))) )):
+                    for i2 in range(max(0, k2 - int(math.log2(len(B[i]))) ), min(len(B[i])-1, k2 + int(math.log2(len(B[i]))) )):
 
-                        if abs(A[k][k2]-B[i][i2]) < temp:
-                            temp = abs(A[k][k2]-B[i][i2])
+                        if self.pixelDistance(A[k][k2], B[i][i2]) < temp:
+                            temp = self.pixelDistance(A[k][k2], B[i][i2])
                             temp_i = (i, i2)
-                        elif abs(A[k][k2]-B[i][i2]) == temp and distance(temp_i, (k,k2)) > distance((i, i2), (k,k2) ) :
-                            temp = abs(A[k][k2]-B[i][i2])
+                        elif self.pixelDistance(A[k][k2], B[i][i2]) == temp and distance(temp_i, (k,k2)) > distance((i, i2), (k,k2) ) :
+                            temp = self.pixelDistance(A[k][k2], B[i][i2])
                             temp_i = (i, i2)
 
-                R[k][k2] = (temp_i, B[temp_i[0]][temp_i[1]] - A[k][k2])
+                R[k][k2] = PixelTransition(temp_i, B[temp_i[0]][temp_i[1]], A[k][k2], self.color)
 
         self.M = R
 
@@ -112,31 +179,26 @@ class Transition:
 
         return self.M[a][b]
 
-    def makeTransition(self, Image, i , i2):
-        k1 = self.getElem(i, i2)[0][0]
-        k2 = self.getElem(i, i2)[0][1]
+    def makeTransitionScale(self, Image, x , y, scale):
 
-        return Image[k1][k2] - self.getElem(i, i2)[1]
+        if self.color:
+            i = x // scale
+            i2 = y // scale
+            j1 = x % scale
+            j2 = y % scale
 
-    def makeTransitionScale(self, Image, i , i2, j1, j2, scale):
-        k1 = self.getElem(i, i2)[0][0]
-        k2 = self.getElem(i, i2)[0][1]
+            (k1, k2) = self.getElem(i, i2).ind
+            (r0, r1, r2) = Image[k1*scale + j1][k2*scale + j2]
+            r = r0 - self.getElem(i, i2).R
+            v = r1 - self.getElem(i, i2).V
+            b = r2 - self.getElem(i, i2).B
 
-        return Image[k1*scale + j1][k2*scale + j2] - self.getElem(i, i2)[1]
+            return (r,v,b)
+        else:
+            (k1, k2) = self.getElem(i, i2).ind
 
-    def constructImage(self, Image):
+            return Image[k1*scale + j1][k2*scale + j2] - self.getElem(i, i2).NB
 
-        R = [ [] for x in range(len(Image))]
-        for i in range(len(R)):
-            for k in range(len(Image[0])):
-                R[i].append(0)
-
-        for i in range(len(Image)):
-            for i2 in range(len(Image[i])):
-
-                R[i][i2] = self.makeTransition(Image, i, i2)
-
-        return R
 
     def constructImageScale(self, Image, scale, X):
 
@@ -147,21 +209,10 @@ class Transition:
             for k in range(len(Image[0])):
                 R[i].append(Image[i][k])
 
-        if scale == 1:
 
-            for (i,j) in X:
-                R[i][j] = self.makeTransitionScale(Image, i, j, 0, 0, scale)
+        for (i,j) in X:
+            R[i][j] = self.makeTransitionScale(Image, i, j, scale)
 
-        else:
-
-            for i in range(len(Image)//scale):
-                for i2 in range(len(Image[i])//scale):
-                    for j in range(scale):
-                        for j2 in range(scale):
-
-                            if (i*scale+j, i2*scale+j2) in X:
-
-                                R[i*scale+j][i2*scale+j2] = self.makeTransitionScale(Image, i, i2, j, j2, scale)
 
         return R
 
@@ -174,25 +225,18 @@ class Transition:
 
 class TransitionsMatrix:
 
-    def __init__(self, S):
+    def __init__(self, S, color = False):
 
         self. M = []
+        self.color = color
         self.getTransitionsMatrix(S)
 
     def getTransitionsMatrix(self, S):
 
         for i in tqdm(range(1, len(S))):
-            T = Transition(S[i-1], S[i])
+            T = Transition(S[i-1], S[i], self.color)
             self.M.append(T)
 
-    def constructVideo(self, Image):
-
-        R = [Image]
-
-        for i in range(len(self.M)):
-            R.append(self.M[i].constructImage(R[i]))
-
-        return R
 
     def constructVideoScale(self, Image, scale, timeStrech):
 
@@ -203,7 +247,7 @@ class TransitionsMatrix:
         for i in tqdm(range(len(self.M))):
             shuffle(X)
             for t in range(timeStrech):
-                R.append(self.M[i].constructImageScale(R[i], scale, X[t*len(X)//timeStrech:(t+1)*len(X)//timeStrech]))
+                R.append(self.M[i].constructImageScale(R[(i*timeStrech)+t], scale, X[t*len(X)//timeStrech:(t+1)*len(X)//timeStrech]))
 
         return R
 
@@ -226,7 +270,19 @@ def listToImageGreyScale(L, i, OUT):
 
     im.save(OUT+"/"+str(i)+".png", "PNG")
 
-def train(VideoName, scale):
+def listToImageColor(L, i, OUT):
+
+    im = Image.new("RGB", (len(L), len(L[0])))
+    pix = im.load()
+    for x in range(len(L)):
+        for y in range(len(L[x])):
+            pix[x,y] = L[x][y]
+
+    i = '0'*(4-len(str(i))) + str(i)
+
+    im.save(OUT+"/"+str(i)+".png", "PNG")
+
+def train(VideoName, scale, color = False):
 
     name = os.path.splitext(VideoName)[0]
     Folder = "Images/"+os.path.splitext(VideoName)[0]+"/IN"
@@ -240,41 +296,19 @@ def train(VideoName, scale):
     print("Converting ...")
     for file in sorted(glob.glob(Folder+'/*.png')):
         print(file+":")
-        S.append(convert_grayscale(Image.open(file)))
+        if (color):
+            S.append(convert_color(Image.open(file)))
+
+        else:
+            S.append(convert_grayscale(Image.open(file)))
 
     print("Learning ...")
-    T = TransitionsMatrix(S)
-    pickle.dump(T, open( "TRAINED/"+name+".train", "wb" ) )
+    T = TransitionsMatrix(S, color = color)
+    pickle.dump((color,T), open( "TRAINED/"+name+".train", "wb" ) )
     print("DONE")
 
-def genVideo(image, model):
 
-    IN = "Images/"+model+"/IN"
-    OUT = "Images/"+model+"/OUT"
-    TEMP = "Images/"+model+"/TEMP"
-
-    im = Image.open(IN+'/0001.png')
-    width, height = im.size
-
-    os.system("mkdir "+OUT)
-    os.system("mkdir "+TEMP)
-
-    im2 = Image.open(image)
-    im2 = im2.resize((width, height), PIL.Image.ANTIALIAS)
-    im2.save(TEMP+image)
-
-    T = pickle.load( open( "TRAINED/"+model+".train", "rb" ) )
-
-    R = T.constructVideo(convert_grayscale(Image.open(TEMP+image)))
-
-    for i in range(len(R)):
-        listToImageGreyScale(R[i], i, OUT)
-
-    os.system("ffmpeg -i '"+OUT+"/%04d.png' -c:v libx264 -preset veryslow -crf 0 OUT/"+str(model)+".mp4 ")
-    os.system("open OUT/"+str(model)+".mp4")
-
-
-def genVideoScale(image, model, scale, timeStrech):
+def genVideo(image, model, scale = 1, timeStrech = 1):
 
     IN = "Images/"+model+"/IN"
     OUT = "Images/"+model+"/OUT"
@@ -290,21 +324,31 @@ def genVideoScale(image, model, scale, timeStrech):
     im2 = im2.resize((width*scale, height*scale), PIL.Image.ANTIALIAS)
     im2.save(TEMP+image)
 
-    T = pickle.load( open( "TRAINED/"+model+".train", "rb" ) )
+    (color,T) = pickle.load( open( "TRAINED/"+model+".train", "rb" ) )
 
-    R = T.constructVideoScale(convert_grayscale(Image.open(TEMP+image)), scale, timeStrech)
+    if color:
+        R = T.constructVideoScale(convert_color(Image.open(TEMP+image)), scale, timeStrech)
 
-    for i in range(len(R)):
-        listToImageGreyScale(R[i], i, OUT)
+    else:
+        R = T.constructVideoScale(convert_grayscale(Image.open(TEMP+image)), scale, timeStrech)
+
+    if color:
+        for i in tqdm(range(len(R))):
+            listToImageColor(R[i], i, OUT)
+
+    else:
+        for i in tqdm(range(len(R))):
+            listToImageGreyScale(R[i], i, OUT)
+
 
     os.system("ffmpeg -i '"+OUT+"/%04d.png' -c:v libx264 -preset veryslow -crf 0 OUT/"+str(model)+".mp4 ")
     os.system("open OUT/"+str(model)+".mp4")    
 
 
 
-#train("TEST.mp4", 100)
+train("2.mp4", 500, color = True)
 
-genVideoScale('IN.jpg', "MOVE", 1, 1)
+genVideo('IN.jpg', "2", scale = 2, timeStrech = 20)
 
 
 
